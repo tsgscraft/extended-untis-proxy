@@ -16,9 +16,15 @@
         #login {
             background: #333;
             color: #fff;
-            width: 90%;
-            text-align: center;
             margin: 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #deeper-login {
+            width: fit-content;
         }
 
         hr {
@@ -42,14 +48,21 @@
             width: 90%;
             text-align: center;
         }
+
+        #status {
+            text-align: center;
+        }
     </style>
 </head>
 <body>
     <div id="login">
-        <input type="text" id="user" placeholder="max.mustermann">
-        <input type="password" id="pass" placeholder="123456">
-        <button onclick="main().catch(console.error);">Free Rooms</button>
+        <div id="deeper-login">
+            <input type="text" id="user" placeholder="max.mustermann">
+            <input type="password" id="pass" placeholder="123456">
+            <button onclick="main().catch(console.error);">Free Rooms</button>
+        </div>
     </div>
+    <p id="status">Enter Credentials</p>
     <hr>
     <div id="register">
         <table id="room-table">

@@ -13,33 +13,26 @@ async function rpc(method, params = {}, cookie = "") {
         }),
     });
 
-    //console.log(JSON.stringify({
-    //    jsonrpc: "2.0",
-    //    id: "1",
-    //    method,
-    //    params,
-    //}, null, 2));
-
     const data = await response.json();
 
-    if (data.error) throw new Error(`RPC Error ${data.error.code}: ${data.error.message}`);
+    if (data.error) {
+        setStatus(`Error ${data.error.code}: ${data.error.message}`);
+        throw new Error(`RPC Error ${data.error.code}: ${data.error.message}`);
+    }
 
     return { result: data.result, cookie: response.headers.get("set-cookie") };
 }
 
 async function main() {
-    // 1. Authenticate
+    setStatus("authenticating...");
     let auth = await authenticate();
-
-    // 2. Get classes
-    //const { result: klassen } = await rpc("getRooms", {}, `JSESSIONID=${auth.sessionId}`);
-    //console.log("Classes:", klassen);
 
     let klassen = [];
     let klassenName = [];
     let rooms = {}; // id = {name, longname}
     let roomIDs = [];
 
+    setStatus("loading classes...");
     let klassenRpc = JSON.parse(JSON.stringify(await getKlassen(auth), null, 2)).result;
 
     for (let i = 0; i < klassenRpc.length; i++) {
@@ -47,6 +40,7 @@ async function main() {
         klassenName.push(klassenRpc[i].name);
     }
 
+    setStatus("loading rooms...");
     let roomsRpc = JSON.parse(JSON.stringify(await getRooms(auth), null, 2)).result;
     for (let i = 0; i < roomsRpc.length; i++) {
         let room = {
@@ -57,26 +51,29 @@ async function main() {
         rooms[room.id] = room;
         roomIDs.push(room.id);
     }
-    //console.log(rooms);
 
-    // format day in YYYYMMDD
     const today = new Date();
     const formattedDate = today.toISOString().slice(0, 10).replace(/\-/g, "");
 
     console.log(formattedDate);
 
+    setStatus("loading timetables... (0/?)");
     for (let i = 0; i < klassen.length; i++) {
+        setStatus("loading timetables... (" + i + "/" + klassen.length + ")");
         let timetable = JSON.parse(JSON.stringify(await getTimetable(auth, klassen[i], formattedDate), null, 2)).result;
         for (let j = 0; j < timetable.length; j++) {
             if (isTimeInRange(timetable[j].startTime, timetable[j].endTime)) {
                 for (let k = 0; k < timetable[j].ro.length; k++) {
-                    //console.log(`Room ${rooms[timetable[j].ro[k].id].longName} (${rooms[timetable[j].ro[k].id].name}) is occupied by class ${klassenName[i]} from ${timetable[j].startTime} to ${timetable[j].endTime}`);
-                    // Remove room id from roomIDs
                     roomIDs.splice(roomIDs.indexOf(timetable[j].ro[k].id), 1);
                 }
             }
         }
     }
+
+    setStatus("success");
+    setTimeout(async () => {
+        setStatus("Enter Credentials")
+    }, 5000);
 
     const table = document.getElementById("room-table");
     console.log("Free rooms:");
@@ -92,9 +89,7 @@ async function main() {
         newRoom.appendChild(longName);
         table.appendChild(newRoom);
     }
-    //console.log("Free rooms:", await getFreeRooms(auth));
 
-    // 3. Logout
     await logout(auth);
 }
 
@@ -136,4 +131,8 @@ async function getRooms(auth) {
 
 async function getKlassen(auth) {
     return await rpc("getKlassen", {}, `JSESSIONID=${auth.sessionId}`);
+}
+
+function setStatus(message) {
+    document.getElementById("status").innerText = message;
 }
