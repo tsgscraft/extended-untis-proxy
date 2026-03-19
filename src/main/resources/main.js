@@ -76,6 +76,7 @@ async function main() {
     }, 5000);
 
     const table = document.getElementById("room-table");
+    table.innerHTML = "<tr><th>Raum Kürzel</th><th>Langer Raumname</th></tr>";
     console.log("Free rooms:");
     for (let i = 0; i < roomIDs.length; i++) {
         let roomID = roomIDs[i];
