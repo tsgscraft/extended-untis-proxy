@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Free Rooms</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #333;
+            color: #fff;
+            font-family: Arial, Helvetica, sans-serif;
+        }
+
+        #login {
+            background: #333;
+            color: #fff;
+            width: 90%;
+            text-align: center;
+            margin: 30px;
+        }
+
+        hr {
+            width: 90%;
+        }
+
+        table {
+            border-collapse: collapse;
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            margin-top: 20px;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+        }
+
+        #register {
+            width: 90%;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="login">
+        <input type="text" id="user" placeholder="max.mustermann">
+        <input type="password" id="pass" placeholder="123456">
+        <button onclick="main().catch(console.error);">Free Rooms</button>
+    </div>
+    <hr>
+    <div id="register">
+        <table id="room-table">
+            <tr>
+                <th>Raum Kürzel</th>
+                <th>Langer Raumname</th>
+            </tr>
+        </table>
+    </div>
+    <script src="main.js"></script>
+</body>
+</html>
