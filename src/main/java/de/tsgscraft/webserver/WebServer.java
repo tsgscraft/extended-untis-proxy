@@ -37,7 +37,11 @@ public class WebServer {
         System.out.println("Setting up server on port " + port);
 
         sites.add(new Site("/", "/index.html", "text/html", true, true));
+        sites.add(new Site("/styles.css", "/styles.css", "text/css", false, true));
         sites.add(new Site("/main.js", "/main.js", "application/javascript", false, true));
+
+        sites.add(new Site("/logo.png", "/logo.png", "image/png", false, true));
+        sites.add(new Site("/smv.svg", "/smv.svg", "image/svg+xml", false, true));
     }
 
     public static void startWebServer() throws Exception {
@@ -103,6 +107,8 @@ public class WebServer {
                 resp.setStatus(HttpServletResponse.SC_NO_CONTENT);
                 return;
             }
+            req.setCharacterEncoding("UTF-8");
+            resp.setCharacterEncoding("UTF-8");
 
             resp.setContentType(site.getType());
             resp.setStatus(HttpServletResponse.SC_OK);
@@ -123,6 +129,8 @@ public class WebServer {
                 resp.setStatus(HttpServletResponse.SC_NO_CONTENT);
                 return;
             }
+            req.setCharacterEncoding("UTF-8");
+            resp.setCharacterEncoding("UTF-8");
 
             resp.setContentType(site.getType());
             resp.setStatus(HttpServletResponse.SC_OK);
@@ -135,46 +143,62 @@ public class WebServer {
                 resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
                 return;
             }
+            req.setCharacterEncoding("UTF-8");
+            resp.setCharacterEncoding("UTF-8");
 
             String body = req.getReader().lines().reduce("", (acc, line) -> acc + line);
             JSONObject json = new JSONObject(body);
             System.out.println("Received POST request with data: " + json.toString());
 
-            JSONObject response = new JSONObject();
+            String response = "";
             try {
-                response = WebServer.doPost(json);
+                response = WebServer.doPostRaw(json);
             } catch (InterruptedException ignored) {}
 
 
 
-            resp.setContentType("application/json");
+            resp.setContentType("application/json; charset=UTF-8");
             resp.setStatus(HttpServletResponse.SC_OK);
-            resp.getOutputStream().write(response.toString().getBytes(StandardCharsets.UTF_8));
+            resp.getOutputStream().write(response.getBytes());
         }
     }
 
     public static JSONObject doPost(JSONObject payload) throws IOException, InterruptedException {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(Main.BASE_URL))
-                .header("Content-Type", "application/json")
+                .header("Content-Type", "application/json; charset=UTF-8")
                 .header("Accept", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(payload.toString()))
+                .POST(HttpRequest.BodyPublishers.ofString(payload.toString(), StandardCharsets.UTF_8)) // explicit charset
                 .build();
 
-        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-        if (response.statusCode() == 200) {
-            JSONObject responseObject = new JSONObject(response.body());
-            if (responseObject.has("error")) {
-                if (responseObject.getJSONObject("error").has("message")) {
-                    String errorMessage = responseObject.getJSONObject("error").getString("message");
-                    System.out.println("Error: " + errorMessage);
-                }
-            }
+        HttpResponse<byte[]> response = client.send(request, HttpResponse.BodyHandlers.ofByteArray());
 
+        if (response.statusCode() == 200) {
+            String contentType = response.headers().firstValue("content-type").orElse("");
+            System.out.println("Content-Type: " + contentType);
+
+            String rawBody = new String(response.body(), StandardCharsets.ISO_8859_1);
+            System.out.println("Raw response: " + rawBody);
+
+            JSONObject responseObject = new JSONObject(rawBody);
             return responseObject;
-        }else if (response.statusCode() == 404) {
-            System.out.println("Error 404: Not Found. Please check your server and school name.");
         }
         return null;
+    }
+
+    public static String doPostRaw(JSONObject payload) throws IOException, InterruptedException {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(Main.BASE_URL))
+                .header("Content-Type", "application/json; charset=UTF-8")
+                .header("Accept", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(payload.toString(), StandardCharsets.UTF_8))
+                .build();
+
+        HttpResponse<byte[]> response = client.send(request, HttpResponse.BodyHandlers.ofByteArray());
+
+        if (response.statusCode() == 200) {
+            return new String(response.body(), StandardCharsets.UTF_8);
+        }
+        return "{\"error\": \"Request failed\"}";
     }
 }

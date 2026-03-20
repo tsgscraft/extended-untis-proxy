@@ -1,8 +1,130 @@
+const loading_bar = document.getElementById("loading-bar-color");
+
+let bar_max = 0;
+
+const filtered = [
+    "149",
+    "151",
+    "158",
+    "99",
+    "102",
+    "93",
+    "164",
+    "114",
+    "150",
+    "152",
+    "153",
+    "156",
+    "100",
+    "103",
+    "94",
+    "168",
+    "115",
+    "159",
+    "165",
+    "104",
+    "105",
+    "127",
+    "223",
+    "157",
+    "167",
+    "155",
+    "170",
+    "169",
+    "112",
+    "191",
+    "80",
+    "43",
+    "122",
+    "123",
+    "234",
+    "98",
+    "97",
+    "101",
+    "54",
+    "185",
+    "189",
+    "81",
+    "238",
+    "235",
+    "95",
+    "96",
+    "201",
+    "154",
+    "147",
+    "148",
+    "146",
+    "61",
+    "62",
+    "85",
+    "82",
+    "63",
+    "64",
+    "86",
+    "65",
+    "66",
+    "67",
+    "68",
+    "69",
+    "87",
+    "70",
+    "72",
+    "71",
+    "73",
+    "246",
+    "243",
+    "241",
+    "125",
+    "126",
+    "124",
+    "160",
+    "242",
+    "120",
+    "182",
+    "106",
+    "121",
+    "208",
+    "128",
+    "91",
+    "174",
+    "177",
+    "175",
+    "198",
+    "113",
+    "108",
+    "135",
+    "173",
+    "161",
+    "116",
+    "109",
+    "107",
+    "92",
+    "110",
+    "137",
+    "111",
+    "172",
+    "171",
+    "89",
+    "118",
+    "138",
+    "140",
+    "76",
+    "141",
+    "129",
+    "142",
+    "131",
+    "143",
+    "144"
+]
+
+let rooms = {}; // id = {name, longname}
+let roomIDs = [];
+
 async function rpc(method, params = {}, cookie = "") {
     const response = await fetch("/", {
         method: "POST",
         headers: {
-            "Content-Type": "application/json",
+            "Content-Type": "application/json; charset=UTF-8",
             ...(cookie && { Cookie: cookie }),
         },
         body: JSON.stringify({
@@ -13,7 +135,7 @@ async function rpc(method, params = {}, cookie = "") {
         }),
     });
 
-    const data = await response.json();
+    const data = await response.json(); // ← replace the manual arrayBuffer decode with this
 
     if (data.error) {
         setStatus(`Error ${data.error.code}: ${data.error.message}`);
@@ -29,8 +151,6 @@ async function main() {
 
     let klassen = [];
     let klassenName = [];
-    let rooms = {}; // id = {name, longname}
-    let roomIDs = [];
 
     setStatus("loading classes...");
     let klassenRpc = JSON.parse(JSON.stringify(await getKlassen(auth), null, 2)).result;
@@ -42,11 +162,13 @@ async function main() {
 
     setStatus("loading rooms...");
     let roomsRpc = JSON.parse(JSON.stringify(await getRooms(auth), null, 2)).result;
+    bar_max = roomsRpc.length + 2;
+    loading_bar.style.width = "1%";
     for (let i = 0; i < roomsRpc.length; i++) {
         let room = {
             id: roomsRpc[i].id,
-            name: roomsRpc[i].name,
-            longName: roomsRpc[i].longName
+            name: fixEncoding(roomsRpc[i].name),
+            longName: fixEncoding(roomsRpc[i].longName)
         }
         rooms[room.id] = room;
         roomIDs.push(room.id);
@@ -59,6 +181,7 @@ async function main() {
 
     setStatus("loading timetables... (0/?)");
     for (let i = 0; i < klassen.length; i++) {
+        loading_bar.style.width = ((i / klassen.length) * 100 + 1) + "%";
         setStatus("loading timetables... (" + i + "/" + klassen.length + ")");
         let timetable = JSON.parse(JSON.stringify(await getTimetable(auth, klassen[i], formattedDate), null, 2)).result;
         for (let j = 0; j < timetable.length; j++) {
@@ -71,27 +194,45 @@ async function main() {
     }
 
     setStatus("success");
+    loading_bar.style.width = "100%";
     setTimeout(async () => {
-        setStatus("Enter Credentials")
+        setStatus("Enter Credentials");
+        loading_bar.style.width = "0%";
     }, 5000);
 
+    setTable();
+
+    await logout(auth);
+}
+
+function setTable() {
     const table = document.getElementById("room-table");
-    table.innerHTML = "<tr><th>Raum Kürzel</th><th>Langer Raumname</th></tr>";
+    table.innerHTML = "<tr><th>Raum ID</th><th>Raum Kürzel</th><th>Langer Raumname</th></tr>";
     console.log("Free rooms:");
     for (let i = 0; i < roomIDs.length; i++) {
         let roomID = roomIDs[i];
+        if (filtered.includes(roomID.toString()) && !document.getElementById("show-all").checked) {
+            continue;
+        }
         console.log(`Room (${rooms[roomID].name}) ${rooms[roomID].longName} is free`);
         let newRoom = document.createElement("tr");
+
+        let newRoomID = document.createElement("td");
+        newRoomID.textContent = roomID;
+
         let name = document.createElement("td");
         name.textContent = rooms[roomID].name;
+
         let longName = document.createElement("td");
+        console.log(rooms[roomID].longName);
+        console.log([...rooms[roomID].longName].map(c => c.charCodeAt(0).toString(16)));
         longName.textContent = rooms[roomID].longName;
+
+        newRoom.appendChild(newRoomID);
         newRoom.appendChild(name);
         newRoom.appendChild(longName);
         table.appendChild(newRoom);
     }
-
-    await logout(auth);
 }
 
 function isTimeInRange(startTime, endTime) {
@@ -136,4 +277,32 @@ async function getKlassen(auth) {
 
 function setStatus(message) {
     document.getElementById("status").innerText = message;
+}
+
+document.querySelector('#pass').addEventListener('keypress', function (e) {
+    if (13 === e.keyCode) {
+        main().catch(console.error);
+    }
+});
+document.querySelector('#user').addEventListener('keypress', function (e) {
+    if (13 === e.keyCode) {
+        main().catch(console.error);
+    }
+});
+
+document.querySelector('#show-all').addEventListener('change', function (e) {
+    setTable();
+});
+
+function fixEncoding(str) {
+    try {
+        // Try to interpret the string as if it were ISO-8859-1 bytes decoded as UTF-8
+        const bytes = new Uint8Array(str.split('').map(c => c.charCodeAt(0)));
+        const decoded = new TextDecoder('utf-8').decode(bytes);
+        // If decoding succeeded without replacement characters, use it
+        if (!decoded.includes('\uFFFD')) {
+            return decoded;
+        }
+    } catch (e) {}
+    return str; // fallback to original
 }
