@@ -114,11 +114,15 @@ const filtered = [
     "142",
     "131",
     "143",
-    "144"
+    "144",
+    "84",
+    "83"
 ]
 
 let rooms = {}; // id = {name, longname}
 let roomIDs = [];
+
+let running = false;
 
 async function rpc(method, params = {}, cookie = "") {
     const response = await fetch("/", {
@@ -139,6 +143,7 @@ async function rpc(method, params = {}, cookie = "") {
 
     if (data.error) {
         setStatus(`Error ${data.error.code}: ${data.error.message}`);
+        running = false;
         throw new Error(`RPC Error ${data.error.code}: ${data.error.message}`);
     }
 
@@ -146,9 +151,15 @@ async function rpc(method, params = {}, cookie = "") {
 }
 
 async function main() {
+    if (running) {
+        return;
+    }
+    running = true;
     setStatus("authenticating...");
     let auth = await authenticate();
 
+    roomIDs = [];
+    rooms = [];
     let klassen = [];
     let klassenName = [];
 
@@ -196,6 +207,9 @@ async function main() {
     setStatus("success");
     loading_bar.style.width = "100%";
     setTimeout(async () => {
+        if (running) {
+            return;
+        }
         setStatus("Enter Credentials");
         loading_bar.style.width = "0%";
     }, 5000);
@@ -203,18 +217,24 @@ async function main() {
     setTable();
 
     await logout(auth);
+    running = false;
 }
 
 function setTable() {
     const table = document.getElementById("room-table");
-    table.innerHTML = "<tr><th>Raum ID</th><th>Raum Kürzel</th><th>Langer Raumname</th></tr>";
-    console.log("Free rooms:");
+    const tbody = table.tBodies[0];
+
+    tbody.innerHTML = `<tr>
+        <th>Raum ID</th>
+        <th>Raum Kürzel</th>
+        <th>Langer Raumname</th>
+    </tr>`;
+
     for (let i = 0; i < roomIDs.length; i++) {
         let roomID = roomIDs[i];
         if (filtered.includes(roomID.toString()) && !document.getElementById("show-all").checked) {
             continue;
         }
-        console.log(`Room (${rooms[roomID].name}) ${rooms[roomID].longName} is free`);
         let newRoom = document.createElement("tr");
 
         let newRoomID = document.createElement("td");
@@ -224,14 +244,12 @@ function setTable() {
         name.textContent = rooms[roomID].name;
 
         let longName = document.createElement("td");
-        console.log(rooms[roomID].longName);
-        console.log([...rooms[roomID].longName].map(c => c.charCodeAt(0).toString(16)));
         longName.textContent = rooms[roomID].longName;
 
         newRoom.appendChild(newRoomID);
         newRoom.appendChild(name);
         newRoom.appendChild(longName);
-        table.appendChild(newRoom);
+        tbody.appendChild(newRoom);
     }
 }
 
