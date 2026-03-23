@@ -123,11 +123,14 @@ const filtered = [
     "227",
     "233",
     "79",
-    "239"
+    "239",
+    "139",
+    "77"
 ]
 
-let rooms = {}; // id = {name, longname}
+let rooms = {}; // id = {name, longname, free until}
 let roomIDs = [];
+let timetables = {};
 
 let running = false;
 
@@ -157,7 +160,38 @@ async function rpc(method, params = {}, cookie = "") {
     return { result: data.result, cookie: response.headers.get("set-cookie") };
 }
 
+function getFreeUntil(id, klassen) {
+    let freeUntil = ""; // next time the room is not free (depending on the current time) (format: "HH:MM")
+
+    let currentTime = new Date().getHours().toString().padStart(2, "0") + new Date().getMinutes().toString().padStart(2, "0");
+    //let currentTime = 1320;
+    console.log(currentTime);
+
+    for (let i = 0; i < klassen.length; i++) {
+        let k = klassen[i];
+        let timetable = timetables[k];
+        if (timetable) {
+            for (let j = 0; j < timetable.length; j++) {
+                let roomIDs = timetable[j].ro.map(r => r.id);
+                if (!roomIDs.includes(id)) {
+                    continue;
+                }
+                let start = timetable[j].startTime;
+                if (start >= currentTime && (freeUntil >= start || freeUntil === "")) {
+                    freeUntil = start;
+                }
+            }
+        }
+    }
+    return freeUntil;
+}
+
+let today = new Date();
+let formattedDate = today.toISOString().slice(0, 10).replace(/\-/g, "");
+
 async function main() {
+    today = new Date();
+    formattedDate = today.toISOString().slice(0, 10).replace(/\-/g, "");
     if (running) {
         return;
     }
@@ -166,7 +200,8 @@ async function main() {
     let auth = await authenticate();
 
     roomIDs = [];
-    rooms = [];
+    rooms = {};
+    timetables = {};
     let klassen = [];
     let klassenName = [];
 
@@ -192,9 +227,6 @@ async function main() {
         roomIDs.push(room.id);
     }
 
-    const today = new Date();
-    const formattedDate = today.toISOString().slice(0, 10).replace(/\-/g, "");
-
     console.log(formattedDate);
 
     setStatus("loading timetables... (0/?)");
@@ -202,13 +234,18 @@ async function main() {
         loading_bar.style.width = ((i / klassen.length) * 100 + 1) + "%";
         setStatus("loading timetables... (" + i + "/" + klassen.length + ")");
         let timetable = JSON.parse(JSON.stringify(await getTimetable(auth, klassen[i], formattedDate), null, 2)).result;
+        timetables[klassen[i]] = timetable;
         for (let j = 0; j < timetable.length; j++) {
-            if (isTimeInRange(timetable[j].startTime, timetable[j].endTime)) {
+            if (isTimeInRange(timetable[j].startTime, timetable[j].endTime) && timetable[j].code !== "cancelled") {
                 for (let k = 0; k < timetable[j].ro.length; k++) {
                     roomIDs.splice(roomIDs.indexOf(timetable[j].ro[k].id), 1);
                 }
             }
         }
+    }
+
+    for (let i = 0; i < roomIDs.length; i++) {
+        rooms[roomIDs[i]].freeUntil = getFreeUntil(roomIDs[i], klassen, auth);
     }
 
     setStatus("success");
@@ -235,6 +272,7 @@ function setTable() {
         <th>Raum ID</th>
         <th>Raum Kürzel</th>
         <th>Langer Raumname</th>
+        <th>Frei Bis</th>
     </tr>`;
 
     for (let i = 0; i < roomIDs.length; i++) {
@@ -253,9 +291,13 @@ function setTable() {
         let longName = document.createElement("td");
         longName.textContent = rooms[roomID].longName;
 
+        let freeUntil = document.createElement("td");
+        freeUntil.textContent = rooms[roomID].freeUntil;
+
         newRoom.appendChild(newRoomID);
         newRoom.appendChild(name);
         newRoom.appendChild(longName);
+        newRoom.appendChild(freeUntil);
         tbody.appendChild(newRoom);
     }
 }

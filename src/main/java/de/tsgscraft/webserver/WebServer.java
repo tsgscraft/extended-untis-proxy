@@ -1,6 +1,7 @@
 package de.tsgscraft.webserver;
 
 import de.tsgscraft.Main;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -18,6 +19,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -26,11 +28,6 @@ public class WebServer {
     private static List<Site> sites = new ArrayList<>();
     private static Server server;
     private static int port;
-
-    private static final CookieManager cookieManager = new CookieManager(null, CookiePolicy.ACCEPT_ALL);
-    private static final HttpClient client = HttpClient.newBuilder()
-            .cookieHandler(cookieManager)
-            .build();
 
     public static void setupServer(int port) {
         WebServer.port = port;
@@ -42,6 +39,7 @@ public class WebServer {
 
         sites.add(new Site("/logo.png", "/logo.png", "image/png", false, true));
         sites.add(new Site("/smv.svg", "/smv.svg", "image/svg+xml", false, true));
+        sites.add(new Site("/GitHub.svg", "/GitHub.svg", "image/svg+xml", false, true));
     }
 
     public static void startWebServer() throws Exception {
@@ -150,43 +148,59 @@ public class WebServer {
             JSONObject json = new JSONObject(body);
             System.out.println("Received POST request with data: " + json.toString());
 
+            if (json.has("method") && json.getString("method").equals("authenticate")) {
+                try {
+                    AuthReturn authReturn = auth(json);
+                    if (authReturn == null) {
+                        resp.setContentType("application/json; charset=UTF-8");
+                        resp.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                        resp.getOutputStream().write("{\"error\": \"Authentication failed\"}".getBytes());
+                        return;
+                    }
+                    clients.put(authReturn.token, authReturn.client);
+
+                    resp.addCookie(new Cookie("JSESSIONID", authReturn.token));
+                    resp.setContentType("application/json; charset=UTF-8");
+                    resp.setStatus(HttpServletResponse.SC_OK);
+                    resp.getOutputStream().write(authReturn.response.getBytes());
+                    return;
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+
+            String token = getCookieValue(req, "JSESSIONID");
+
+            System.out.println("Received POST request with token: " + token);
+
             String response = "";
             try {
-                response = WebServer.doPostRaw(json);
+                response = WebServer.doPostRaw(json, token);
             } catch (InterruptedException ignored) {}
 
-
-
+            resp.addCookie(new Cookie("JSESSIONID", token));
             resp.setContentType("application/json; charset=UTF-8");
             resp.setStatus(HttpServletResponse.SC_OK);
             resp.getOutputStream().write(response.getBytes());
         }
     }
 
-    public static JSONObject doPost(JSONObject payload) throws IOException, InterruptedException {
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(Main.BASE_URL))
-                .header("Content-Type", "application/json; charset=UTF-8")
-                .header("Accept", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(payload.toString(), StandardCharsets.UTF_8)) // explicit charset
-                .build();
+    private static String getCookieValue(HttpServletRequest req, String name) {
+        Cookie[] cookies = req.getCookies();
+        if (cookies == null) return null;
 
-        HttpResponse<byte[]> response = client.send(request, HttpResponse.BodyHandlers.ofByteArray());
-
-        if (response.statusCode() == 200) {
-            String contentType = response.headers().firstValue("content-type").orElse("");
-            System.out.println("Content-Type: " + contentType);
-
-            String rawBody = new String(response.body(), StandardCharsets.ISO_8859_1);
-            System.out.println("Raw response: " + rawBody);
-
-            JSONObject responseObject = new JSONObject(rawBody);
-            return responseObject;
+        for (Cookie cookie : cookies) {
+            if (cookie.getName().equals(name)) {
+                return cookie.getValue();
+            }
         }
         return null;
     }
 
-    public static String doPostRaw(JSONObject payload) throws IOException, InterruptedException {
+
+    private static final Map<String, HttpClient> clients = new HashMap<>();
+
+    public static String doPostRaw(JSONObject payload, String token) throws IOException, InterruptedException {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(Main.BASE_URL))
                 .header("Content-Type", "application/json; charset=UTF-8")
@@ -194,11 +208,40 @@ public class WebServer {
                 .POST(HttpRequest.BodyPublishers.ofString(payload.toString(), StandardCharsets.UTF_8))
                 .build();
 
-        HttpResponse<byte[]> response = client.send(request, HttpResponse.BodyHandlers.ofByteArray());
+        HttpResponse<byte[]> response = clients.get(token).send(request, HttpResponse.BodyHandlers.ofByteArray());
 
         if (response.statusCode() == 200) {
             return new String(response.body(), StandardCharsets.UTF_8);
         }
         return "{\"error\": \"Request failed\"}";
+    }
+
+    public static AuthReturn auth(JSONObject payload) throws IOException, InterruptedException {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(Main.BASE_URL))
+                .header("Content-Type", "application/json; charset=UTF-8")
+                .header("Accept", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(payload.toString(), StandardCharsets.UTF_8))
+                .build();
+
+        CookieManager cookieManager = new CookieManager(null, CookiePolicy.ACCEPT_ALL);
+        HttpClient client = HttpClient.newBuilder()
+                .cookieHandler(cookieManager)
+                .build();
+
+        HttpResponse<byte[]> response = client.send(request, HttpResponse.BodyHandlers.ofByteArray());
+
+        String token = null;
+        for (String cookie : response.headers().allValues("set-cookie")) {
+            if (cookie.startsWith("JSESSIONID=")) {
+                token = cookie.split(";")[0].split("=")[1];
+                break;
+            }
+        }
+
+        if (response.statusCode() == 200) {
+            return new AuthReturn(client, token, new String(response.body(), StandardCharsets.UTF_8));
+        }
+        return null;
     }
 }
