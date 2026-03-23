@@ -1,8 +1,15 @@
 package de.tsgscraft;
 
 import de.tsgscraft.webserver.WebServer;
+import org.json.JSONObject;
 
 import java.io.File;
+import java.io.IOException;
+import java.net.http.HttpClient;
+import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 public class Main {
 
@@ -12,6 +19,8 @@ public class Main {
 
     public static String BASE_URL = "https://rfgs-freiburg.webuntis.com/WebUntis/jsonrpc.do?school=rfgs-freiburg";
 
+    public static ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+
     public static void main(String[] args) throws Exception {
         try {
             configFile = new File("config.json");
@@ -20,6 +29,33 @@ public class Main {
             System.out.println("Failed to load config: " + e.getMessage());
             return;
         }
+
+        scheduler.scheduleAtFixedRate(() -> {
+            try {
+                for (Map.Entry<String, HttpClient> entry : WebServer.clients.entrySet()) {
+                    String token = entry.getKey();
+                    HttpClient client = entry.getValue();
+
+                    JSONObject json = new JSONObject();
+                    json.put("jsonrpc", "2.0");
+                    json.put("id", "999");
+                    json.put("method", "getStatusData");
+                    json.put("params", new JSONObject());
+
+                    JSONObject response = new JSONObject(WebServer.doPostRaw(json, token));
+                    if (response.has("error")) {
+                        if (response.getJSONObject("error").getInt("code") == -8520) {
+                            System.out.println("Client not authenticated anymore, removing token: " + token);
+                            WebServer.clients.remove(token);
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                System.out.println("Scheduler error: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }, 0, 1, TimeUnit.MINUTES);
+
         WebServer.setupServer(port);
         WebServer.startWebServer();
     }

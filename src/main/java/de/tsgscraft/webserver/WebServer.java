@@ -198,7 +198,7 @@ public class WebServer {
     }
 
 
-    private static final Map<String, HttpClient> clients = new HashMap<>();
+    public static final Map<String, HttpClient> clients = new HashMap<>();
 
     public static String doPostRaw(JSONObject payload, String token) throws IOException, InterruptedException {
         HttpRequest request = HttpRequest.newBuilder()
