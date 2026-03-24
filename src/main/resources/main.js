@@ -245,7 +245,8 @@ async function main() {
     }
 
     for (let i = 0; i < roomIDs.length; i++) {
-        rooms[roomIDs[i]].freeUntil = getFreeUntil(roomIDs[i], klassen, auth);
+        let freeUntil = getFreeUntil(roomIDs[i], klassen, auth).toString();
+        rooms[roomIDs[i]].freeUntil = freeUntil.subString(0, freeUntil.length-2) + ":" + freeUntil.subString(freeUntil.length-2, freeUntil.length);
     }
 
     setStatus("success");
