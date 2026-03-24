@@ -246,7 +246,10 @@ async function main() {
 
     for (let i = 0; i < roomIDs.length; i++) {
         let freeUntil = getFreeUntil(roomIDs[i], klassen, auth).toString();
-        rooms[roomIDs[i]].freeUntil = freeUntil.subString(0, freeUntil.length-2) + ":" + freeUntil.subString(freeUntil.length-2, freeUntil.length);
+        if (freeUntil === "") {
+            continue;
+        }
+        rooms[roomIDs[i]].freeUntil = freeUntil.substring(0, freeUntil.length-2) + ":" + freeUntil.substring(freeUntil.length-2, freeUntil.length);
     }
 
     setStatus("success");
@@ -294,6 +297,7 @@ function setTable() {
 
         let freeUntil = document.createElement("td");
         freeUntil.textContent = rooms[roomID].freeUntil;
+        freeUntil.style.textAlign = "right";
 
         newRoom.appendChild(newRoomID);
         newRoom.appendChild(name);

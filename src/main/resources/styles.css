@@ -117,7 +117,7 @@ button:hover {
 
 .bottom-links {
     position: absolute;
-    bottom: 12px;
+    bottom: 50px;
     left: 12px;
     width: calc(100% - 24px);
     box-sizing: border-box;
@@ -152,5 +152,9 @@ button:hover {
 
     #status {
         margin-top: revert;
+    }
+
+    .bottom-links {
+        bottom: 12px;
     }
 }
