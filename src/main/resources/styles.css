@@ -61,9 +61,13 @@ body {
     height: 100vh;
 }
 
+.main-content {
+    margin: 10px 10px 50px;
+}
+
 #room-table {
     border-collapse: collapse;
-    margin: 10px 10px 50px;
+    overflow-x: auto;
 }
 
 #room-table td,th {
@@ -127,6 +131,166 @@ button:hover {
     width: 40px !important;
 }
 
+.noBtn {
+    border: none;
+    background: none;
+}
+
+.noBtn:hover {
+    border: none;
+    background: none;
+}
+
+hr {
+    width: 90%;
+    border: 1px solid #ccc;
+    margin: 2px 0;
+}
+
+.content-control {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    border: solid 2px #ccc;
+    border-radius: 24px;
+    margin-top: 8px;
+    padding: 4px;
+    width: 290px
+}
+
+.selection-bar {
+    position: relative;
+    display: flex;
+    border-radius: 100px;
+    overflow: hidden;
+    width: min-content;
+    user-select: none;
+    gap: 6px;
+    box-sizing: border-box;
+    background: #dcdcdc;
+    border: 2px solid #ccc;
+    height: min-content;
+}
+
+.option {
+    position: relative;
+    background: none;
+    border: none;
+    padding: 10px 25px;
+    font-size: 16px;
+    cursor: pointer;
+    z-index: 1;
+    transition: color 0.3s ease;
+    border-radius: 100px;
+    width: fit-content;
+}
+
+.option:hover {
+    color: #3f3f3f;
+}
+
+#indicator {
+    position: absolute;
+    top: 3px;
+    left: 5px;
+    height: calc(100% - 6px);
+    width: 0;
+    background: #007fb0;
+    border-radius: 100px;
+    z-index: 0;
+}
+
+.option.active {
+    color: #ffffff;
+}
+
+.selection-bar {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+}
+
+#content-settings {
+    margin: 6px;
+}
+
+#content-settings div {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    gap: 6px;
+    width: fit-content;
+    box-sizing: border-box;
+    flex: 0 0 fit-content;
+    margin-top: 4px;
+}
+
+#content-settings p {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 550;
+    padding: 0;
+}
+
+.custom-checkbox {
+    padding: 9px 14px;
+    box-sizing: border-box;
+    width: 100%;
+    border-radius: 100px;
+    background: #ccc;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.3s ease;
+}
+
+.custom-checkbox.active {
+    background: #007fb0;
+    color: #fff;
+}
+
+.small-button {
+    width: fit-content;
+}
+
+
+.custom-schedule {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    width: 16vw;
+    box-sizing: border-box;
+}
+
+.schedule-day {
+    position: relative;
+    height: fit-content;
+    min-width: 135.5px;
+    min-height: 750px;
+}
+
+.schedule-lesson {
+    position: absolute;
+    background: #cecece;
+    border-radius: 12px;
+    border: 1px solid #cecece;
+    padding: 6px;
+    box-sizing: border-box;
+}
+
+.schedule-class {
+    font-size: 16px;
+    margin: 0;
+}
+
+.schedule-teacher {
+    font-size: 14px;
+    margin: 0;
+}
+
 @media screen and (max-width: 600px) {
     .control {
         width: 100%;
@@ -147,7 +311,7 @@ button:hover {
 
     .content {
         height: auto;
-        width: 100%;
+        width: min(100%, 100vw);
     }
 
     #status {
@@ -156,5 +320,9 @@ button:hover {
 
     .bottom-links {
         bottom: 12px;
+    }
+
+    .option {
+        margin-bottom: 4px;
     }
 }

@@ -131,6 +131,9 @@ const filtered = [
 let rooms = {}; // id = {name, longname, free until}
 let roomIDs = [];
 let timetables = {};
+let roomTimetables = {};
+let klassen = [];
+let klassenName = [];
 
 let running = false;
 
@@ -160,38 +163,26 @@ async function rpc(method, params = {}, cookie = "") {
     return { result: data.result, cookie: response.headers.get("set-cookie") };
 }
 
-function getFreeUntil(id, klassen) {
-    let freeUntil = ""; // next time the room is not free (depending on the current time) (format: "HH:MM")
-
-    let currentTime = new Date().getHours().toString().padStart(2, "0") + new Date().getMinutes().toString().padStart(2, "0");
-    //let currentTime = 1320;
-    console.log(currentTime);
-
-    for (let i = 0; i < klassen.length; i++) {
-        let k = klassen[i];
-        let timetable = timetables[k];
-        if (timetable) {
-            for (let j = 0; j < timetable.length; j++) {
-                let roomIDs = timetable[j].ro.map(r => r.id);
-                if (!roomIDs.includes(id)) {
-                    continue;
-                }
-                let start = timetable[j].startTime;
-                if (start >= currentTime && (freeUntil >= start || freeUntil === "")) {
-                    freeUntil = start;
-                }
-            }
-        }
-    }
-    return freeUntil;
-}
-
 let today = new Date();
 let formattedDate = today.toISOString().slice(0, 10).replace(/\-/g, "");
 
+let freeUntilMap = {};
+
+function doesNotContain(roomTimetable, lesson) {
+    let contains = false;
+    for (let i = 0; i < roomTimetable.length; i++) {
+        if (JSON.stringify(roomTimetable[i]) === lesson) {
+            contains = true;
+            break;
+        }
+    }
+    return !contains;
+}
+
 async function main() {
     today = new Date();
-    formattedDate = today.toISOString().slice(0, 10).replace(/\-/g, "");
+    //formattedDate = today.toISOString().slice(0, 10).replace(/\-/g, "");
+    formattedDate = "20260325";
     if (running) {
         return;
     }
@@ -202,8 +193,8 @@ async function main() {
     roomIDs = [];
     rooms = {};
     timetables = {};
-    let klassen = [];
-    let klassenName = [];
+    klassen = [];
+    klassenName = [];
 
     setStatus("loading classes...");
     let klassenRpc = JSON.parse(JSON.stringify(await getKlassen(auth), null, 2)).result;
@@ -229,6 +220,8 @@ async function main() {
 
     console.log(formattedDate);
 
+    let currentTime = new Date().getHours().toString().padStart(2, "0") + new Date().getMinutes().toString().padStart(2, "0");
+
     setStatus("loading timetables... (0/?)");
     for (let i = 0; i < klassen.length; i++) {
         loading_bar.style.width = ((i / klassen.length) * 100 + 1) + "%";
@@ -241,15 +234,35 @@ async function main() {
                     roomIDs.splice(roomIDs.indexOf(timetable[j].ro[k].id), 1);
                 }
             }
+            let start = timetable[j].startTime;
+            for (let k = 0; k < timetable[j].ro.length; k++) {
+                let roomID = timetable[j].ro[k].id;
+                if (start >= currentTime && (freeUntilMap[roomID] >= start || freeUntilMap[roomID] <= 0)) {
+                    freeUntilMap[roomID] = start;
+                    rooms[roomID].freeUntil = start.substring(0, start.length-2) + ":" + start.substring(start.length-2, start.length);
+                }
+            }
+            for (let k = 0; k < timetable[j].ro.length; k++) {
+                if (timetable[j].code !== "cancelled") {
+                    let roomID = timetable[j].ro[k].id;
+                    const lesson = JSON.stringify({
+                        start: timetable[j].startTime,
+                        end: timetable[j].endTime,
+                        day: (timetable[j].date-formattedDate),
+                        classes: getIdsFromJsonArray(timetable[j].kl),
+                        teachers: getIdsFromJsonArray(timetable[j].te),
+                        vIndex: -1
+                    });
+                    if (!roomTimetables[roomID]) {
+                        roomTimetables[roomID] = [];
+                    }
+                    if (doesNotContain(roomTimetables[roomID], lesson)) {
+                        roomTimetables[roomID].push(JSON.parse(lesson));
+                    }
+                    roomTimetables[roomID].push();
+                }
+            }
         }
-    }
-
-    for (let i = 0; i < roomIDs.length; i++) {
-        let freeUntil = getFreeUntil(roomIDs[i], klassen, auth).toString();
-        if (freeUntil === "") {
-            continue;
-        }
-        rooms[roomIDs[i]].freeUntil = freeUntil.substring(0, freeUntil.length-2) + ":" + freeUntil.substring(freeUntil.length-2, freeUntil.length);
     }
 
     setStatus("success");
@@ -272,22 +285,20 @@ function setTable() {
     const table = document.getElementById("room-table");
     const tbody = table.tBodies[0];
 
-    tbody.innerHTML = `<tr>
-        <th>Raum ID</th>
-        <th>Raum Kürzel</th>
-        <th>Langer Raumname</th>
-        <th>Frei Bis</th>
-    </tr>`;
+    let header = `<tr>`
+    if (debug) {
+        header = header + `<th>ID</th>`;
+    }
+    header = header + `<th>Kürzel</th><th>Langer Raumname</th><th>Frei Bis</th></tr>`;
+
+    tbody.innerHTML = header;
 
     for (let i = 0; i < roomIDs.length; i++) {
         let roomID = roomIDs[i];
-        if (filtered.includes(roomID.toString()) && !document.getElementById("show-all").checked) {
+        if (filtered.includes(roomID.toString()) && !show_all) {
             continue;
         }
         let newRoom = document.createElement("tr");
-
-        let newRoomID = document.createElement("td");
-        newRoomID.textContent = roomID;
 
         let name = document.createElement("td");
         name.textContent = rooms[roomID].name;
@@ -299,7 +310,12 @@ function setTable() {
         freeUntil.textContent = rooms[roomID].freeUntil;
         freeUntil.style.textAlign = "right";
 
-        newRoom.appendChild(newRoomID);
+        if (debug) {
+            let newRoomID = document.createElement("td");
+            newRoomID.textContent = roomID;
+            newRoom.appendChild(newRoomID);
+        }
+
         newRoom.appendChild(name);
         newRoom.appendChild(longName);
         newRoom.appendChild(freeUntil);
@@ -362,10 +378,6 @@ document.querySelector('#user').addEventListener('keypress', function (e) {
     }
 });
 
-document.querySelector('#show-all').addEventListener('change', function (e) {
-    setTable();
-});
-
 function fixEncoding(str) {
     try {
         // Try to interpret the string as if it were ISO-8859-1 bytes decoded as UTF-8
@@ -377,4 +389,185 @@ function fixEncoding(str) {
         }
     } catch (e) {}
     return str; // fallback to original
+}
+
+
+
+const options = document.querySelectorAll('.option');
+const indicator = document.getElementById('indicator');
+
+const option_free = document.getElementById('content-free');
+const option_room = document.getElementById('content-room');
+const option_teacher = document.getElementById('content-teacher');
+
+const room_table_content = document.getElementById('room-table-content');
+const room_schedule_content = document.getElementById('room-schedule-content');
+const teacher_schedule_content = document.getElementById('teacher-schedule-content');
+
+options.forEach(option => {
+    option.addEventListener('click', () => {
+        options.forEach(o => {
+            o.classList.remove('active')
+        });
+        option.classList.add('active');
+        moveIndicator(option);
+        if (option.id === "option-free") {
+            option_free.style.display = "flex";
+            option_room.style.display = "none";
+            option_teacher.style.display = "none";
+
+            room_table_content.style.display = "block";
+            room_schedule_content.style.display = "none";
+            teacher_schedule_content.style.display = "none";
+        }else if (option.id === "option-room") {
+            option_free.style.display = "none";
+            option_room.style.display = "flex";
+            option_teacher.style.display = "none";
+
+            room_table_content.style.display = "none";
+            room_schedule_content.style.display = "block";
+            teacher_schedule_content.style.display = "none";
+        }else if (option.id === "option-teacher") {
+            option_free.style.display = "none";
+            option_room.style.display = "none";
+            option_teacher.style.display = "flex";
+
+            room_table_content.style.display = "none";
+            room_schedule_content.style.display = "none";
+            teacher_schedule_content.style.display = "block";
+        }
+    });
+});
+
+function moveIndicator(element) {
+    indicator.style.width = `${element.offsetWidth-10}px`;
+    indicator.style.left = `${element.offsetLeft+5}px`;
+}
+
+window.addEventListener('load', () => {
+    const active = document.querySelectorAll('.option.active');
+    active.forEach(o => {
+        moveIndicator(o);
+    });
+    indicator.style.transition = 'all 0.2s ease';
+});
+
+window.addEventListener('resize', () => {
+    const active = document.querySelectorAll('.option.active');
+    active.forEach(o => {
+        moveIndicator(o);
+    });
+});
+
+let show_all = false;
+let debug = false;
+
+const checkBoxes = document.querySelectorAll('.custom-checkbox');
+
+checkBoxes.forEach(o => {
+    o.addEventListener('click', () => {
+        o.classList.toggle('active');
+        if (o.id === "show-all") {
+            show_all = !show_all;
+            setTable();
+        } else if (o.id === "debug") {
+            debug = !debug;
+            setTable();
+        }
+    });
+});
+
+setTable();
+
+function searchRoom() {
+    const input = document.getElementById("room-filter").value.toLowerCase();
+    let room = "";
+    console.log(rooms)
+    for (let i = 0; i < roomIDs.length; i++) {
+        console.log(rooms[i]);
+        if (rooms[roomIDs[i]].name.toLowerCase() === input) {
+            room = rooms[roomIDs[i]].id;
+            break;
+        }
+    }
+    console.log(input + " - " + room);
+    setScheduleHtml(document.getElementById("room-schedule"), roomTimetables[room]);
+}
+
+/*
+ * mainBody: div
+ * timetable: 
+ * [
+ *   {
+ *     start: "HHMM",
+ *     end: "HHMM",
+ *     day: 0-4,
+ *     room: "123N",
+ *     classes: ["10A", "10B"],
+ *     teachers: ["Mr. Smith", "Ms. Johnson"],
+ *     vIndex: 0... (for overlapping classes)
+ *   },
+ *   ...
+ * ]
+ */
+function setScheduleHtml(mainBody, timetable) {
+    let days = 1;
+    let start = 755; // 7:55
+    let end = 1845; // 18:45
+    const scaleFactor = 0.75; // 4 minutes = 3px
+    mainBody.innerHTML = ``;
+    for (let i = 0; i < days; i++) {
+        let day = document.createElement("div");
+        day.classList.add("schedule-day");
+        for (let j = 0; j < timetable.length; j++) {
+            const lStart = timetable[j].start;
+            const lEnd = timetable[j].end;
+            if (lStart >= start && lEnd <= end && timetable[j].day === i) {
+                const lesson = document.createElement("div");
+                lesson.classList.add("schedule-lesson");
+                lesson.style.top = ((lStart - start) * scaleFactor) + "px";
+                lesson.style.height = ((lEnd - lStart) * scaleFactor) + "px";
+                if (timetable[j].vIndex !== -1) {
+                    lesson.style.left = (timetable[j].vIndex * 100) + "%";
+                    lesson.style.width = (100 / (timetable[j].vIndex + 1)) + "%";
+                }else {
+                    lesson.style.width = "100%"
+                }
+                const classes = document.createElement("p");
+                classes.classList.add("schedule-class");
+                classes.textContent = getFormattedClasses(timetable[j].classes);
+                const teachers = document.createElement("p");
+                teachers.classList.add("schedule-teacher");
+                teachers.textContent = timetable[j].teachers.join(", ");
+                lesson.appendChild(classes);
+                lesson.appendChild(teachers);
+                day.appendChild(lesson);
+            }
+        }
+        mainBody.appendChild(day);
+    }
+}
+
+function getFormattedClasses(classes){
+    let result = '';
+    classes.forEach(o => {
+        const i = klassen.indexOf(o);
+        if (i !== -1) {
+            result = result + klassenName[i];
+        }else {
+            result = result + o;
+        }
+        if (classes.indexOf(o) !== classes.length-1) {
+            result = result + ", ";
+        }
+    });
+    return result;
+}
+
+function getIdsFromJsonArray(jsonArray) {
+    let ids = [];
+    for (let i = 0; i < jsonArray.length; i++) {
+        ids.push(jsonArray[i].id);
+    }
+    return ids;
 }

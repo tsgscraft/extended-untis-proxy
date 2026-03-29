@@ -17,11 +17,7 @@
             <div class="control-ui" style="height: fit-content">
                 <input class="text-input" type="text" id="user" placeholder="max.mustermann">
                 <input class="text-input" type="password" id="pass" placeholder="123456">
-                <button onclick="main().catch(console.error);">Free Rooms</button>
-            </div>
-            <div>
-                <input type="checkbox" id="show-all">
-                <label for="show-all">Show All</label>
+                <button onclick="main().catch(console.error);">Get Data</button>
             </div>
             <p id="status">Enter Credentials</p>
         </div>
@@ -33,14 +29,43 @@
         <div id="loading-bar">
             <div id="loading-bar-color"></div>
         </div>
-        <table id="room-table">
-            <tr>
-                <th>Raum ID</th>
-                <th>Raum Kürzel</th>
-                <th>Langer Raumname</th>
-                <th>Frei Bis</th>
-            </tr>
-        </table>
+        <div class="content-control">
+            <div class="selection-bar">
+                <div id="indicator"></div>
+                <button id="option-free" class="noBtn option active">Frei</button>
+                <button id="option-room" class="noBtn option">Raum</button>
+                <button id="option-teacher" class="noBtn option">Lehrer</button>
+            </div>
+            <div id="content-settings">
+                <div id="content-free">
+                    <div class="custom-checkbox" id="show-all">
+                        <p>Show All</p>
+                    </div>
+                    <div class="custom-checkbox" id="debug">
+                        <p>Debug</p>
+                    </div>
+                </div>
+                <div id="content-room" style="display: none">
+                    <input type="text" placeholder="Raum Kürzel" id="room-filter" class="text-input">
+                    <button onclick="searchRoom();" class="small-button">Search</button>
+                </div>
+                <div id="content-teacher" style="display: none">
+                    <input type="text" placeholder="Lehrer" id="teacher-filter" class="text-input">
+                    <button onclick="" class="small-button">Search</button>
+                </div>
+            </div>
+        </div>
+        <div id="room-table-content" class="main-content">
+            <table id="room-table">
+                <tbody></tbody>
+            </table>
+        </div>
+        <div id="room-schedule-content" class="main-content" style="display: none">
+            <div class="custom-schedule" id="room-schedule"></div>
+        </div>
+        <div id="teacher-schedule-content" class="main-content" style="display: none">
+            <p>Teacher Schedule</p>
+        </div>
     </div>
     <script src="main.js"></script>
 </body>

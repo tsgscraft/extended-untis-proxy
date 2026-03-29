@@ -6,6 +6,7 @@ import org.json.JSONObject;
 import java.io.File;
 import java.io.IOException;
 import java.net.http.HttpClient;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -32,6 +33,7 @@ public class Main {
 
         scheduler.scheduleAtFixedRate(() -> {
             try {
+                List<String> tokensToRemove = new java.util.ArrayList<>();
                 for (Map.Entry<String, HttpClient> entry : WebServer.clients.entrySet()) {
                     String token = entry.getKey();
                     HttpClient client = entry.getValue();
@@ -46,9 +48,12 @@ public class Main {
                     if (response.has("error")) {
                         if (response.getJSONObject("error").getInt("code") == -8520) {
                             System.out.println("Client not authenticated anymore, removing token: " + token);
-                            WebServer.clients.remove(token);
+                            tokensToRemove.add(token);
                         }
                     }
+                }
+                for (String token : tokensToRemove) {
+                    WebServer.clients.remove(token);
                 }
             } catch (Exception e) {
                 System.out.println("Scheduler error: " + e.getMessage());
